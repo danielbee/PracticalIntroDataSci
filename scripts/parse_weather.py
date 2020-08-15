@@ -17,8 +17,9 @@ def main():
     bigFrame = []
     stationDataRaw = {}
     for station in stations: 
+        print(station)
         stationDataRaw[station]= open(dataStationPath+station+'.txt').read().splitlines()
-
+        extras = getDataExtras(stationDataRaw[station])
         stationFrame = getDataFrame(stationDataRaw[station])
         # add a column for the station
         stationFrame['station'] = station
@@ -28,7 +29,7 @@ def main():
         bigFrame.append(stationFrame)
     # Combine all the dataframes
     stationsData = pd.concat(bigFrame)
-    #print(stationsData)
+    print(stationsData.reset_index().dtypes)
     # Print out in desired formats
     stationsData.to_excel(dataPath+'stationData.xlsx')
     stationsData.to_csv(dataPath+'stationData.csv')
@@ -72,5 +73,44 @@ def getDataFrame(raw):
     #print(df)
     return df
 
+import re
+def getDataExtras(raw):
+    topRaw = '\n'.join(raw[0:20])
 
+    gridRef = re.findall('\d+E \d+N',topRaw)
+    asml=[]
+    latlon=[]
+    for line in raw[0:20]:
+        if re.search(gridRef[0],line):
+            print(line)
+           
+            asml.append(re.search('(\d+)\s*m\w*\samsl',line).group(1))
+            latlonSearch = re.search('lat\s*(-*\d+\.\d+) lon\s*(-*\d+\.\d+)',str.lower(line))
+            if latlonSearch:
+                latlon.append((latlonSearch.group(1),latlonSearch.group(2)))
+            else:
+                #print("No long lat!!")
+                latlon.append(getLatLong(gridRef[0]))
+        if len(gridRef) > 1 :
+            # we have site change
+            yearSearch = re.search('to\s+\w*\s*([1-2][7-9,0][0-9]{2})',line)
+            if yearSearch:
+                print(yearSearch.group(1))
+            if re.search(gridRef[1],line):
+                print(line)
+                asml.append(re.search('(\d+)\s*m\w*\samsl',line).group(1))
+                latlonSearch = re.search('lat\s*(-*\d+\.\d+) lon\s*(-*\d+\.\d+)',str.lower(line))
+                if latlonSearch:
+                    latlon.append((latlonSearch.group(1),latlonSearch.group(2)))
+                else:
+                    #print("No long lat!!")
+                    latlon.append(getLatLong(gridRef[0]))
+    #print('asml:{}\nlatlon:{}'.format(asml,latlon))
+
+def getLatLong(gridRef):
+    import requests
+    page = requests.get('http://www.nearby.org.uk/coord.cgi?p='+gridRef+'&f=conv')
+    #print(page.text)
+    pageSearch = re.search('Decimal: <B>(-*\d+\.\d+) (-*\d+\.\d+)</B>',page.text)
+    return (pageSearch.group(1),pageSearch.group(2))
 main()
