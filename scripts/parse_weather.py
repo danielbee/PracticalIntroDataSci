@@ -21,7 +21,7 @@ def main():
         stationDataRaw[station]= open(dataStationPath+station+'.txt').read().splitlines()
         stationFrame = getDataFrame(stationDataRaw[station])
         # Extract things like height above sea level, longitude and latitude and site changes.
-        extras = getDataExtras(stationDataRaw[station],stationFrame)
+        stationFrame = getDataExtras(stationDataRaw[station],stationFrame)
         # add a column for the station
         stationFrame['station'] = station
         # Make station column the most signifiant index in the multiIndex
@@ -34,6 +34,8 @@ def main():
     # Print out in desired formats
     stationsData.to_excel(dataPath+'stationData.xlsx')
     stationsData.to_csv(dataPath+'stationData.csv')
+    
+    stationsData.to_string(dataPath+'stationData.txt')
 
 # bit of an assumption
 tableStart = re.compile('\s{3}yyyy')
@@ -128,21 +130,102 @@ def getDataExtras(raw,df):
                     latlon.append(getLatLong(gridRef[0]))
     #print('asml:{}\nlatlon:{}'.format(asml,latlon))
     ## Add features to dataframe
+
+    # This is wrong, but i just want to get data in there and start classify.
+    # Tehcnically, we should determine site changes , which may have a significant impact on frost days if asml gets higher.  
+    extra_df = setExtrasInDf(df,
+                        df_filter= df.index.get_level_values('yyyy') > 0,
+                        asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+                    )
+    
+    with open('dfL.txt','a') as f:
+        print(extra_df.to_string(), file=f)
+    return extra_df
     if len(gridRef) >1:
         # Need to apply features using extracted years. 
         #print(df.dtypes)
         tempTypeDf = df.reset_index()
         #tempTypeDf[['yyyy','mm']] = tempTypeDf[['yyyy','mm']].astype(int)
         #tempTypeDf[['tmax','tmin','af','rain','sun']] = tempTypeDf[['tmax','tmin','af','rain','sun']].astype(float)
-        
+        #defensive
+        if len(lowerYr) >0 and len(upperYr) >0:
+            # We were able to find SOMETHING we can use.
+            print('lower: {} \t upper: {} \t month {}'.format(lowerYr,upperYr,upperYrMonth))
+            #if upperYr[0] > lowerYr[1]: 
+            #    print('issue')
+            if len(lowerYr) == 1:
+                # super simple
+                #if upperYrMonth[0]:
+                #    
+                #    tempTypeDf = setExtrasInDf(tempTypeDf,
+                #        df_filter= tempTypeDf['yyyy']<int(upperYr[0]) or (tempTypeDf['yyyy']==int(upperYr[0]) and tempTypeDf['mm']<int(upperYrMonth[0])),
+                #        asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+                #    )
+                #   tempTypeDf = setExtrasInDf(tempTypeDf,
+                #       df_filter= tempTypeDf['yyyy']>=int(upperYr[0]) or (tempTypeDf['yyyy']==int(upperYr[0]) and tempTypeDf['mm']>=int(upperYrMonth[0])),
+                #       asml=asml[1], lat=latlon[1][0],long=latlon[1][1],gridRef=gridRef[1]
+                #   )
+                #else:
+                    tempTypeDf = setExtrasInDf(tempTypeDf,
+                        df_filter= tempTypeDf['yyyy']<int(upperYr[0]),
+                        asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+                    )
+
+                    tempTypeDf = setExtrasInDf(tempTypeDf,
+                        df_filter=tempTypeDf['yyyy']>=int(upperYr[0]),
+                        asml=asml[1], lat=latlon[1][0],long=latlon[1][1],gridRef=gridRef[1]
+                    )
+                    #if lowerYr[0] and upperYr[0]:
+                    #    tempTypeDf = setExtrasInDf(tempTypeDf,
+                    #        df_filter= tempTypeDf['yyyy']>=int(lowerYr[0]) and tempTypeDf['yyyy']<int(upperYr[0]),
+                    #        asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+                    #    )
+                    #    tempTypeDf = setExtrasInDf(tempTypeDf,
+                    #        df_filter= tempTypeDf['yyyy']>=int(upperYr[0]),
+                    #        asml=asml[1], lat=latlon[1][0],long=latlon[1][1],gridRef=gridRef[1]
+                    #    )
+                    #elif upperYr[0] and lowerYr[0] == None:
+                        
+
+            #if lowerYr[0] == None and lowerYr[1] == None:
+            #    if upperYr[0] and upperYr[1]:
+            #        # Nice simple case
+            #        if upperYr[0] == upperYr[1]:
+            #            tempTypeDf = setExtrasInDf(tempTypeDf,
+            #                df_filter= tempTypeDf['yyyy']<int(upperYr[1]),
+            #                asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+            #            )
+            #            tempTypeDf = setExtrasInDf(tempTypeDf,
+            #                df_filter= tempTypeDf['yyyy']>=int(upperYr[1]),
+            #                asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0]
+            #            )
+                    ## TODO: 
+                    #if upperYrMonth[0] and upperYrMonth[1] :
+#
+                    #elif upperYrMonth[0] and upperYrMonth[1] == None:
+                    #elif upperYrMonth[1]:
+                    #else:
+        else : 
+            print('unable to aquire site change year. Will dump other grid refs of {} and keep only {}.'.format(gridRef[1:],gridRef[0]))
         if len(upperYr) >0 :
-            
-            tempTypeDf.loc[tempTypeDf['yyyy']<int(upperYr[-1]),'asml'] = int(asml[0])
-            tempTypeDf.loc[tempTypeDf['yyyy']>=int(upperYr[-1]),'asml'] = int(asml[-1])
-            #print(tempTypeDf.to_string())
+            #tempTypeDf = setExtrasInDf(
+            #    tempTypeDf,
+            #    df_filter= tempTypeDf['yyyy']<int(upperYr[-1]),
+            #    asml=asml[0], lat=latlon[0][0],long=latlon[0][1],gridRef=gridRef[0])
+            #tempTypeDf = setExtrasInDf(
+            #    tempTypeDf,
+            #    df_filter= tempTypeDf['yyyy']>=int(upperYr[-1]),
+            #    asml=asml[-1], lat=latlon[-1][0],long=latlon[-1][1],gridRef=gridRef[-1])
+            #tempTypeDf.loc[tempTypeDf['yyyy']<int(upperYr[-1]),'asml'] = int(asml[0])
+            #tempTypeDf.loc[tempTypeDf['yyyy']<int(upperYr[-1]),'Lat'] = float(latlon[0][0])
+            #tempTypeDf.loc[tempTypeDf['yyyy']<int(upperYr[-1]),'Long'] = float(latlon[0][1])
+            #tempTypeDf.loc[tempTypeDf['yyyy']>=int(upperYr[-1]),'asml'] = int(asml[-1])
+            #tempTypeDf.loc[tempTypeDf['yyyy']>=int(upperYr[-1]),'Lat'] = float(latlon[-1][0])
+            #tempTypeDf.loc[tempTypeDf['yyyy']>=int(upperYr[-1]),'Long'] = float(latlon[-1][1])
             #print(len(tempTypeDf.reset_index()['yyyy']))            
             #print(len([int(x) for x in tempTypeDf.index.get_level_values('yyyy').values if (math.isnan(float(x)) == False)]))
-            #with open('df_after.txt','w') as f:
+            with open('df.txt','a') as f:
+                print(tempTypeDf.to_string(), file=f)
             #    print(tempTypeDf.reset_index().dropna(subset=['yyyy']).to_string(), file=f)
             #with open('df_before.txt','w') as f:
             #    print(tempTypeDf.reset_index().to_string(), file=f)
@@ -150,7 +233,12 @@ def getDataExtras(raw,df):
             #print([int(x) for x in tempTypeDf.index.get_level_values('yyyy').values if (math.isnan(float(x)) == False and x == upperYr[-1])])
             #print([int(x) for x in tempTypeDf.index.get_level_values('yyyy').values if (math.isnan(float(x)) == False and x != upperYr[-1])])
 
-
+def setExtrasInDf(df, df_filter, asml, lat, long, gridRef): 
+    df.loc[df_filter,'asml'] = int(asml)
+    df.loc[df_filter,'lat'] = float(lat)
+    df.loc[df_filter,'long'] = float(long)
+    df.loc[df_filter,'gridRef'] = str(gridRef)
+    return df
 def getLatLong(gridRef):
     import requests
     page = requests.get('http://www.nearby.org.uk/coord.cgi?p='+gridRef+'&f=conv')
